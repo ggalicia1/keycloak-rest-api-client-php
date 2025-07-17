@@ -1,5 +1,5 @@
 {
-    "name": "overtrue/keycloak-rest-api-client-php",
+    "name": "ggalicia/keycloak-rest-api-client-php",
     "description": "PHP client to interact with Keycloak's Admin REST API.",
     "type": "library",
     "require": {
