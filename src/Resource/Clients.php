@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Overtrue\Keycloak\Resource;
 
+use App\Paginate\Pagination;
 use Overtrue\Keycloak\Collection\ClientCollection;
+use Overtrue\Keycloak\Collection\RoleCollection;
 use Overtrue\Keycloak\Http\Command;
 use Overtrue\Keycloak\Http\Criteria;
 use Overtrue\Keycloak\Http\Method;
 use Overtrue\Keycloak\Http\Query;
 use Overtrue\Keycloak\Representation\Client as ClientRepresentation;
+use Overtrue\Keycloak\Representation\Role as RoleRepresentation;
 use Overtrue\Keycloak\Representation\Credential;
 use Psr\Http\Message\ResponseInterface;
 
@@ -60,7 +63,7 @@ class Clients extends Resource
             $client = ClientRepresentation::from($client);
         }
 
-        $this->commandExecutor->executeCommand(
+        $response =  $this->commandExecutor->executeCommand(
             new Command(
                 '/admin/realms/{realm}/clients',
                 Method::POST,
@@ -71,7 +74,12 @@ class Clients extends Resource
             ),
         );
 
-        return $this->get($realm, $client->getId());
+        $clientId = $this->getIdFromResponse($response);
+        if ($clientId === null) {
+            throw new \RuntimeException('Could not extract user id from response');
+        }
+
+       return $this->get($realm, $clientId);
     }
 
     /**
@@ -145,5 +153,103 @@ class Clients extends Resource
                 ],
             ),
         );
+    }
+
+    public function getClientRoles(string $realm, string $clientUuid, Criteria|array|null $criteria = null): RoleCollection
+    {
+        return $this->queryExecutor->executeQuery(
+            new Query(
+                '/admin/realms/{realm}/clients/{clientUuid}/roles',
+                RoleCollection::class,
+                [
+                    'realm' => $realm,
+                    'clientUuid' => $clientUuid,
+                ],
+                $criteria
+            ),
+        );
+    }
+    public function clientRoleByName(string $realm, string $clientUuid, string $roleName): RoleRepresentation
+    {
+        return $this->queryExecutor->executeQuery(
+            new Query(
+                '/admin/realms/{realm}/clients/{client-uuid}/roles/{role-name}',
+                RoleRepresentation::class,
+                [
+                    'realm' => $realm,
+                    'client-uuid' => $clientUuid,
+                    'role-name' => $roleName,
+                ],
+
+            ),
+        );
+    }
+    public function createClientRole(string $realm, string $clientUuid, RoleRepresentation|array $role): RoleRepresentation
+    {
+       if (! $role instanceof RoleRepresentation) {
+            $role = RoleRepresentation::from($role);
+        }
+        $this->commandExecutor->executeCommand(
+            new Command(
+                '/admin/realms/{realm}/clients/{client-uuid}/roles',
+                Method::POST,
+                [
+                    'realm' => $realm,
+                    'client-uuid' => $clientUuid,
+                ],
+                $role,
+            ),
+        );
+
+        return $this->clientRoleByName($realm, $clientUuid, $role->name);
+    }
+
+    public function updateClientRole(string $realm,  string $clientUuid, RoleRepresentation|array $role): RoleRepresentation
+    {
+        if (! $role instanceof RoleRepresentation) {
+            $role = RoleRepresentation::from($role);
+        }
+
+        $this->commandExecutor->executeCommand(
+            new Command(
+                '/admin/realms/{realm}/clients/{client-uuid}/roles/{role-name}',
+                Method::PUT,
+                [
+                    'realm' => $realm,
+                    'client-uuid' => $clientUuid,
+                    'role-name' => $role->getName(),
+                ],
+                $role,
+            ),
+        );
+
+        return $this->clientRoleByName($realm, $clientUuid, $role->name);
+    }
+
+
+    public function deleteClientRole(string $realm, string $clientUuid, string $roleName) : ResponseInterface
+    {
+        return $this->commandExecutor->executeCommand(
+            new Command(
+                '/admin/realms/{realm}/clients/{client-uuid}/roles/{role-name}',
+                Method::DELETE,
+                [
+                    'realm' => $realm,
+                    'client-uuid' => $clientUuid,
+                    'role-name' => $roleName,
+                ],
+            ),
+        );
+    }
+
+
+    public function getIdFromResponse(ResponseInterface $response): ?string
+    {
+        // Location: http://keycloak:8080/admin/realms/master/clients/999a5022-e757-4f5f-ba0e-1d3ccd601c34
+        $location = $response->getHeaderLine('Location');
+
+        preg_match('~/clients/(?<id>[a-z0-9\-]+)$~', $location, $matches);
+
+        return $matches['id'] ?? null;
     }
 }

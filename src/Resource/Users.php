@@ -14,6 +14,7 @@ use Overtrue\Keycloak\Http\Method;
 use Overtrue\Keycloak\Http\Query;
 use Overtrue\Keycloak\Representation\User as UserRepresentation;
 use Psr\Http\Message\ResponseInterface;
+use Overtrue\Keycloak\Representation\Role as RoleRepresentation;
 
 class Users extends Resource
 {
@@ -26,6 +27,19 @@ class Users extends Resource
             new Query(
                 '/admin/realms/{realm}/users',
                 UserCollection::class,
+                [
+                    'realm' => $realm,
+                ],
+                $criteria,
+            ),
+        );
+    }
+    public function count(string $realm, Criteria|array|null $criteria = null): int
+    {
+        return $this->queryExecutor->executeQuery(
+            new Query(
+                '/admin/realms/{realm}/users/count',
+                 'int',
                 [
                     'realm' => $realm,
                 ],
@@ -54,6 +68,7 @@ class Users extends Resource
     public function create(string $realm, UserRepresentation|array $user): UserRepresentation
     {
         if (! $user instanceof UserRepresentation) {
+
             $user = UserRepresentation::from($user);
         }
 
@@ -242,6 +257,60 @@ class Users extends Resource
                 [
                     'realm' => $realm,
                     'userId' => $userId,
+                ],
+                $roles,
+            ),
+        );
+    }
+
+    public function retrieveClientRoles(string $realm, string $userId, string $clientUuid): RoleCollection
+    {
+        return $this->queryExecutor->executeQuery(
+            new Query(
+                '/admin/realms/{realm}/users/{user-id}/role-mappings/clients/{client-id}',
+                RoleCollection::class,
+                [
+                    'realm' => $realm,
+                    'user-id' => $userId,
+                    'client-id' => $clientUuid,
+                ],
+            ),
+        );
+    }
+
+    public function addClientRole(string $realm, string $userId, string $clientUuid, RoleCollection|array $roles): ResponseInterface
+    {
+        if (! $roles instanceof RoleCollection) {
+            $roles = new RoleCollection($roles);
+        }
+
+        return $this->commandExecutor->executeCommand(
+            new Command(
+                '/admin/realms/{realm}/users/{user-id}/role-mappings/clients/{client-id}',
+                Method::POST,
+                [
+                    'realm' => $realm,
+                    'user-id' => $userId,
+                    'client-id' => $clientUuid,
+                ],
+                $roles,
+            ),
+        );
+    }
+    public function removeClientRole(string $realm, string $userId, string $clientUuid, RoleCollection|array $roles): ResponseInterface
+    {
+        if (! $roles instanceof RoleCollection) {
+            $roles = new RoleCollection($roles);
+        }
+
+        return $this->commandExecutor->executeCommand(
+            new Command(
+                '/admin/realms/{realm}/users/{user-id}/role-mappings/clients/{client-id}',
+                Method::DELETE,
+                [
+                    'realm' => $realm,
+                    'user-id' => $userId,
+                    'client-id' => $clientUuid,
                 ],
                 $roles,
             ),
